@@ -75,16 +75,30 @@ function generateSecureJti(length = 12): string {
  * Checks if an operation requires X-SWIFT-Signature non-repudiation header.
  */
 function isSignatureOperation(method: string, subPath: string): boolean {
-  if (method.toUpperCase() !== "POST") return false;
+  const m = method.toUpperCase();
+  if (m !== "POST" && m !== "PATCH") return false;
   const pathOnly = subPath.split("?")[0];
   const clean = pathOnly.replace(/^v[12]\//, "").replace(/^\//, "");
-  return (
-    clean === "fin/messages" ||
-    clean === "fin/messages/batch" ||
-    clean === "interact/messages" ||
-    clean === "interact/messages/batch" ||
-    clean === "fileact/transfers"
-  );
+
+  // 1. Distributions ACK: POST distributions/{id}/acks
+  if (m === "POST" && /^distributions\/[^/]+\/acks$/i.test(clean)) return true;
+
+  // 2. Distributions NAK: POST distributions/{id}/naks
+  if (m === "POST" && /^distributions\/[^/]+\/naks$/i.test(clean)) return true;
+
+  // 3. Distributions Batch PATCH: PATCH distributions
+  if (m === "PATCH" && clean.toLowerCase() === "distributions") return true;
+
+  // 4. FIN messages: POST fin/messages, POST fin/messages/batch
+  if (m === "POST" && (clean === "fin/messages" || clean === "fin/messages/batch")) return true;
+
+  // 5. InterAct messages: POST interact/messages, POST interact/messages/batch
+  if (m === "POST" && (clean === "interact/messages" || clean === "interact/messages/batch")) return true;
+
+  // 6. FileAct transfers
+  if (m === "POST" && clean === "fileact/transfers") return true;
+
+  return false;
 }
 
 /**

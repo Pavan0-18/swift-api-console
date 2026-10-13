@@ -77,9 +77,20 @@ export function formatAudienceUrl(path: string, environment: "sandbox" | "test" 
  */
 export function isSignatureRequired(method: string, path: string): boolean {
   const m = method.toUpperCase();
-  if (m !== "POST") return false;
+  if (m !== "POST" && m !== "PATCH") return false;
 
   const normalized = path.replace(/^\/alliancecloud/, "").replace(/^\/v[12]/, "");
+
+  // 1. Distributions ACK: POST /distributions/{id}/acks
+  if (m === "POST" && /^\/distributions\/[^/]+\/acks$/i.test(normalized)) return true;
+
+  // 2. Distributions NAK: POST /distributions/{id}/naks
+  if (m === "POST" && /^\/distributions\/[^/]+\/naks$/i.test(normalized)) return true;
+
+  // 3. Distributions Batch PATCH: PATCH /distributions
+  if (m === "PATCH" && /^\/distributions$/i.test(normalized)) return true;
+
+  // 4. FIN & InterAct & FileAct
   return (
     normalized === "/fin/messages" ||
     normalized === "/fin/messages/batch" ||

@@ -286,7 +286,7 @@ export function ApiExplanationModal({ requestId, isOpen, onClose }: ApiExplanati
               </div>
 
               {/* Pre-request Script (Non-Repudiation) */}
-              {doc.method === "POST" && (doc.section === "FIN" || doc.section === "InterAct") && (
+              {[3, 4, 5, 6, 7, 18, 19].includes(doc.id) && (
                 <div className="space-y-2 p-3.5 rounded-lg border border-[#800020]/20 bg-[#800020]/5">
                   <div className="flex items-center justify-between">
                     <h4 className="font-bold text-[#800020] font-mono text-[11px] uppercase tracking-wider flex items-center gap-1.5">

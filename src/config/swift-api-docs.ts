@@ -216,6 +216,7 @@ export const SWIFT_API_DOCS: Record<number, ApiDocDefinition> = {
       ],
       headers: [
         { name: "Authorization", value: "Bearer <token>", description: "OAuth 2.0 Bearer access token." },
+        { name: "X-SWIFT-Signature", value: "eyJhbGciOiJSUzI1NiIs...", description: "Non-repudiation RS256 JWT generated via pre-request script: CustomGlobalFunctions.createNRSignature(\"sub\", \"privateKey\", \"publicKey\")." },
         { name: "Accept", value: "application/json", description: "Standard JSON API media type." },
       ],
       body: {
@@ -260,6 +261,7 @@ export const SWIFT_API_DOCS: Record<number, ApiDocDefinition> = {
       ],
       headers: [
         { name: "Authorization", value: "Bearer <token>", description: "OAuth 2.0 Bearer access token." },
+        { name: "X-SWIFT-Signature", value: "eyJhbGciOiJSUzI1NiIs...", description: "Non-repudiation RS256 JWT generated via pre-request script: CustomGlobalFunctions.createNRSignature(\"sub\", \"privateKey\", \"publicKey\")." },
         { name: "Content-Type", value: "application/json", description: "JSON request body." },
       ],
       body: {
@@ -306,6 +308,7 @@ export const SWIFT_API_DOCS: Record<number, ApiDocDefinition> = {
     request: {
       headers: [
         { name: "Authorization", value: "Bearer <token>", description: "OAuth 2.0 Bearer access token." },
+        { name: "X-SWIFT-Signature", value: "eyJhbGciOiJSUzI1NiIs...", description: "Non-repudiation RS256 JWT generated via pre-request script: CustomGlobalFunctions.createNRSignature(\"sub\", \"privateKey\", \"publicKey\")." },
         { name: "Content-Type", value: "application/json", description: "JSON array of updates." },
       ],
       body: {

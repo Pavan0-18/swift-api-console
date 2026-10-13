@@ -98,4 +98,40 @@ if (!convertedXml || convertedXml.format !== "xml" || !convertedXml.isBase64 || 
   process.exit(1);
 }
 
-console.log("\nALL 9 VERIFICATION SUITES PASSED CLEANLY!");
+import { isSignatureRequired } from "../src/lib/swift/signature";
+
+// 10. Test Non-Repudiation Pre-request Script Coverage (ACK, NAK, PATCH distributions, FIN, InterAct)
+const isAckSig = isSignatureRequired("POST", "/v2/distributions/44984189499/acks");
+const isNakSig = isSignatureRequired("POST", "/v2/distributions/44984189499/naks");
+const isPatchSig = isSignatureRequired("PATCH", "/v2/distributions");
+const isFinSig = isSignatureRequired("POST", "/v2/fin/messages");
+const isFinBatchSig = isSignatureRequired("POST", "/v2/fin/messages/batch");
+const isIaSig = isSignatureRequired("POST", "/v2/interact/messages");
+const isIaBatchSig = isSignatureRequired("POST", "/v2/interact/messages/batch");
+const isGetDistSig = isSignatureRequired("GET", "/v2/distributions");
+
+console.log(`[PASS] Pre-request Script Requirements:
+  - ACK: ${isAckSig}
+  - NAK: ${isNakSig}
+  - PATCH: ${isPatchSig}
+  - FIN Single: ${isFinSig}
+  - FIN Batch: ${isFinBatchSig}
+  - InterAct Single: ${isIaSig}
+  - InterAct Batch: ${isIaBatchSig}
+  - GET Distributions: ${isGetDistSig} (Expected false)`);
+
+if (
+  !isAckSig ||
+  !isNakSig ||
+  !isPatchSig ||
+  !isFinSig ||
+  !isFinBatchSig ||
+  !isIaSig ||
+  !isIaBatchSig ||
+  isGetDistSig
+) {
+  console.error("[FAIL] Pre-request signature coverage verification failed!");
+  process.exit(1);
+}
+
+console.log("\nALL 10 VERIFICATION SUITES PASSED CLEANLY!");
