@@ -1,130 +1,163 @@
-import { getEnvironmentConfig } from "./environments";
-import { SwiftEnvironmentKey } from "@/types/swift";
-import { SwiftRequestOptions } from "./types";
-import { SwiftUpstreamError } from "@/lib/api/errors";
+import { isSignatureRequired } from "./signature";
+
+export type SwiftEnvironment = "sandbox" | "test" | "live";
+
+export interface SwiftRequestConfig {
+  method: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
+  path: string;
+  pathParams?: Record<string, string | number>;
+  queryParams?: Record<string, string | number | boolean | undefined>;
+  body?: unknown;
+  accessToken?: string;
+  environment?: SwiftEnvironment;
+}
 
 export interface SwiftApiResponse<T = unknown> {
   status: number;
-  statusText: string;
-  headers: Record<string, string>;
-  data: T;
   durationMs: number;
+  success: boolean;
+  data?: T;
+  error?: {
+    code?: string;
+    message?: string;
+    details?: unknown;
+  };
+  signatureInfo?: {
+    attached: boolean;
+    digest?: string;
+    aud?: string;
+    jti?: string;
+  };
+  raw?: unknown;
 }
 
 /**
- * Backend client for executing requests against the SWIFT Alliance Cloud Messaging API.
- * The browser never calls SWIFT directly; all calls go through this client on the server.
+ * Resolves path template e.g. "/v2/fin/messages/{distribution-id}" with actual parameters.
  */
-export class SwiftClient {
-  private environment: SwiftEnvironmentKey;
-  private accessToken: string;
-  private baseUrl: string;
+export function resolvePath(pathTemplate: string, params: Record<string, string | number> = {}): string {
+  let resolved = pathTemplate;
+  for (const [key, val] of Object.entries(params)) {
+    const encoded = encodeURIComponent(String(val).trim());
+    resolved = resolved.replace(new RegExp(`\\{${key}\\}`, "g"), encoded);
+  }
+  return resolved;
+}
 
-  constructor(environment: SwiftEnvironmentKey, accessToken: string) {
-    this.environment = environment;
-    this.accessToken = accessToken;
-    this.baseUrl = getEnvironmentConfig(environment).baseUrl;
+/**
+ * Builds query string, formatting arrays as comma-separated values (e.g. distribution-id=44984189500,44984189501).
+ */
+export function buildQueryString(params: Record<string, unknown> = {}): string {
+  const parts: string[] = [];
+  for (const [key, val] of Object.entries(params)) {
+    if (val === undefined || val === null || val === "") continue;
+    if (Array.isArray(val)) {
+      parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(val.join(","))}`);
+    } else {
+      parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(val))}`);
+    }
+  }
+  return parts.length > 0 ? `?${parts.join("&")}` : "";
+}
+
+/**
+ * Sanitizes any URLs returned by SWIFT Live host into local/selected environment paths.
+ */
+export function sanitizeSwiftHref(href: string): string {
+  if (!href) return "";
+  try {
+    const url = new URL(href);
+    return url.pathname.replace(/^\/alliancecloud\//, "");
+  } catch {
+    return href.replace(/^https?:\/\/[^/]+\/alliancecloud\//, "");
+  }
+}
+
+/**
+ * Shared SWIFT HTTP Client Engine
+ */
+export async function executeSwiftRequest<T = Record<string, unknown>>(
+  config: SwiftRequestConfig
+): Promise<SwiftApiResponse<T>> {
+  const startTime = Date.now();
+  const env = config.environment || "sandbox";
+
+  // 1. Resolve path and query
+  const cleanPath = config.path.startsWith("/") ? config.path.slice(1) : config.path;
+  const versionedPath = cleanPath.startsWith("v2/") || cleanPath.startsWith("v1/") ? cleanPath : `v2/${cleanPath}`;
+  const resolvedPath = resolvePath(versionedPath, config.pathParams || {});
+  const queryString = buildQueryString(config.queryParams as Record<string, unknown>);
+  const fullEndpoint = `/api/swift/${resolvedPath}${queryString}`;
+
+  // 2. Prepare headers
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    "X-SWIFT-Environment": env,
+  };
+
+  if (config.accessToken) {
+    headers["Authorization"] = `Bearer ${config.accessToken}`;
   }
 
-  public async request<T = unknown>(options: SwiftRequestOptions): Promise<SwiftApiResponse<T>> {
-    const startTime = Date.now();
-    const cleanPath = options.path.startsWith("/") ? options.path : `/${options.path}`;
-    const url = new URL(`${this.baseUrl}${cleanPath}`);
+  let bodyStr: string | undefined = undefined;
+  if (config.body && ["POST", "PUT", "PATCH"].includes(config.method.toUpperCase())) {
+    headers["Content-Type"] = "application/json";
+    bodyStr = typeof config.body === "string" ? config.body : JSON.stringify(config.body);
+  }
 
-    if (options.queryParams) {
-      Object.entries(options.queryParams).forEach(([key, value]) => {
-        if (value !== undefined && value !== null && value !== "") {
-          url.searchParams.append(key, String(value));
-        }
-      });
-    }
-
-    const headers: Record<string, string> = {
-      Authorization: `Bearer ${this.accessToken}`,
-      Accept: "application/json, application/xml, text/plain, */*",
-      "User-Agent": "SWIFT-API-Console/2.1.1",
-      ...(options.headers || {}),
-    };
-
-    let bodyData: BodyInit | undefined;
-    if (options.body) {
-      if (typeof options.body === "string") {
-        bodyData = options.body;
-      } else if (options.body instanceof FormData || options.body instanceof URLSearchParams) {
-        bodyData = options.body;
-      } else {
-        headers["Content-Type"] = headers["Content-Type"] || "application/json";
-        bodyData = JSON.stringify(options.body);
-      }
-    }
-
-    let response: Response;
-    try {
-      response = await fetch(url.toString(), {
-        method: options.method || "GET",
-        headers,
-        body: bodyData,
-        cache: "no-store",
-      });
-    } catch (err) {
-      const durationMs = Date.now() - startTime;
-      const errorMsg = err instanceof Error ? err.message : "Failed to connect to SWIFT API";
-      throw new SwiftUpstreamError(
-        `SWIFT API Gateway connection failed on [${options.method || "GET"} ${cleanPath}]: ${errorMsg} (${durationMs}ms)`,
-        502
-      );
-    }
-
-    const durationMs = Date.now() - startTime;
-    const responseHeaders: Record<string, string> = {};
-    response.headers.forEach((val, key) => {
-      responseHeaders[key] = val;
+  try {
+    const res = await fetch(fullEndpoint, {
+      method: config.method,
+      headers,
+      body: bodyStr,
     });
 
-    const responseText = await response.text();
-    let data: unknown = responseText;
+    const durationMs = Date.now() - startTime;
+    const json = await res.json().catch(() => ({}));
 
-    const contentType = response.headers.get("content-type") || "";
-    if (contentType.includes("application/json")) {
-      try {
-        data = JSON.parse(responseText);
-      } catch {
-        // Fallback to text
-        data = responseText;
-      }
+    // Handle 204 No Content
+    if (res.status === 204) {
+      return {
+        status: 204,
+        durationMs,
+        success: true,
+        data: { status: "acknowledged", message: "Action accepted (HTTP 204 No Content)" } as unknown as T,
+        raw: json,
+      };
     }
 
-    if (!response.ok) {
-      throw new SwiftUpstreamError(
-        `SWIFT API returned HTTP ${response.status} ${response.statusText}`,
-        response.status,
-        typeof data === "object" ? data : { raw: data }
-      );
+    let parsedData: unknown = json;
+    if (json && typeof json === "object" && "data" in json) {
+      parsedData = json.data;
     }
 
     return {
-      status: response.status,
-      statusText: response.statusText,
-      headers: responseHeaders,
-      data: data as T,
+      status: res.status,
       durationMs,
+      success: res.ok,
+      data: parsedData as T,
+      error: !res.ok
+        ? {
+            code: (json.error?.code as string) || "SWIFT_ERROR",
+            message:
+              (json.error?.message as string) ||
+              (json.message as string) ||
+              `Request rejected with status ${res.status}`,
+            details: json,
+          }
+        : undefined,
+      signatureInfo: json.signatureInfo,
+      raw: json,
     };
-  }
-
-  // Convenience shortcuts
-  public get<T>(path: string, queryParams?: Record<string, string | number | boolean | undefined>, headers?: Record<string, string>) {
-    return this.request<T>({ method: "GET", path, queryParams, headers });
-  }
-
-  public post<T>(path: string, body?: unknown, headers?: Record<string, string>) {
-    return this.request<T>({ method: "POST", path, body, headers });
-  }
-
-  public put<T>(path: string, body?: unknown, headers?: Record<string, string>) {
-    return this.request<T>({ method: "PUT", path, body, headers });
-  }
-
-  public delete<T>(path: string, headers?: Record<string, string>) {
-    return this.request<T>({ method: "DELETE", path, headers });
+  } catch (err) {
+    const durationMs = Date.now() - startTime;
+    return {
+      status: 500,
+      durationMs,
+      success: false,
+      error: {
+        code: "NETWORK_ERROR",
+        message: (err as Error).message || "Network error connecting to SWIFT gateway proxy",
+      },
+    };
   }
 }
