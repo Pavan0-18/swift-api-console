@@ -211,9 +211,8 @@ function swiftDevServerPlugin(): Plugin {
               const bodyParams = new URLSearchParams();
               bodyParams.append("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer");
               bodyParams.append("assertion", jwt);
-              if (scope && scope.trim()) {
-                bodyParams.append("scope", scope.trim());
-              }
+              const effectiveScope = (scope && typeof scope === "string" && scope.trim()) ? scope.trim() : "swift.alliancecloud.api";
+              bodyParams.append("scope", effectiveScope);
 
               const targetUrl = environment === "test"
                 ? "https://api-test.swiftnet.sipn.swift.com/oauth2/v1/token"
