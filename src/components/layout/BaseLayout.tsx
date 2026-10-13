@@ -94,8 +94,8 @@ export function BaseLayout() {
               className="bg-transparent border-none text-xs font-mono font-semibold text-slate-800 focus:outline-none cursor-pointer"
             >
               <option value="sandbox">Sandbox (sandbox.swift.com)</option>
-              <option value="test">Test/Pilot (api-test.swiftnet...)</option>
-              <option value="live">Live (api.swiftnet...)</option>
+              <option value="test">Test/Pilot (yet to implement)</option>
+              <option value="live">Live (yet to implement)</option>
             </select>
           </div>
 

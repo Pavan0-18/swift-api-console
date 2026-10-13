@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Send, Clock, Eye, BookOpen } from "lucide-react";
+import { Send, Clock, Eye, BookOpen, ShieldCheck, ChevronDown, ChevronUp, Copy, Check } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +25,8 @@ export function InventoryRequestRunner({ request }: InventoryRequestRunnerProps)
   const [pathVariables, setPathVariables] = React.useState<Record<string, string>>({});
   const [queryParams, setQueryParams] = React.useState<Record<string, string>>({});
   const [bodyString, setBodyString] = React.useState<string>("");
+  const [showPreReqScript, setShowPreReqScript] = React.useState(false);
+  const [copiedScript, setCopiedScript] = React.useState(false);
 
   const [isExecuting, setIsExecuting] = React.useState(false);
   const [result, setResult] = React.useState<SwiftExecutionResult | null>(null);
@@ -235,6 +237,78 @@ export function InventoryRequestRunner({ request }: InventoryRequestRunnerProps)
                 placeholder="{ ... }"
                 helperText="JSON body formatted according to SWIFT Alliance Cloud 2.1 specification"
               />
+
+              {/* Pre-request Script Notice & Viewer for Non-Repudiation POST Endpoints */}
+              {request.method === "POST" && (request.section === "FIN" || request.section === "InterAct") && (
+                <div className="rounded-lg bg-[#800020]/5 border border-[#800020]/20 text-xs font-mono text-slate-700 overflow-hidden transition-all">
+                  <div className="p-3 flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="h-4 w-4 shrink-0 text-[#800020]" />
+                      <span className="font-bold text-[#800020]">Pre-request script active</span>
+                      <Badge variant="outline" className="text-[10px] bg-white text-[#800020] border-[#800020]/30 py-0 h-4">
+                        Non-Repudiation
+                      </Badge>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-slate-500 hidden sm:inline">
+                        Auto-attaches <code className="bg-white px-1 py-0.5 rounded border border-[#800020]/20 font-bold text-[#800020]">X-SWIFT-Signature</code>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowPreReqScript((prev) => !prev)}
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#800020] hover:underline cursor-pointer"
+                      >
+                        {showPreReqScript ? (
+                          <>
+                            <span>Hide Script</span>
+                            <ChevronUp className="h-3.5 w-3.5" />
+                          </>
+                        ) : (
+                          <>
+                            <span>View Postman Script</span>
+                            <ChevronDown className="h-3.5 w-3.5" />
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {showPreReqScript && (
+                    <div className="px-3 pb-3 pt-1 border-t border-[#800020]/15 space-y-2 bg-white/70">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] uppercase font-bold text-slate-500">
+                          SWIFT Postman Collection Pre-request Script
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const scriptText = `var signature = CustomGlobalFunctions.createNRSignature("sub", "privateKey", "publicKey");\npm.request.removeHeader("X-SWIFT-Signature");\npm.request.headers.add({key: "X-SWIFT-Signature", value: signature});`;
+                            navigator.clipboard.writeText(scriptText);
+                            setCopiedScript(true);
+                            toast.success("Pre-request script copied");
+                            setTimeout(() => setCopiedScript(false), 2000);
+                          }}
+                          className="inline-flex items-center gap-1 text-[11px] text-[#800020] hover:underline font-semibold cursor-pointer"
+                        >
+                          {copiedScript ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                          <span>Copy Script</span>
+                        </button>
+                      </div>
+
+                      <pre className="p-2.5 rounded border border-[#800020]/15 bg-slate-900 text-slate-100 font-mono text-[11px] overflow-x-auto leading-relaxed">
+{`var signature = CustomGlobalFunctions.createNRSignature("sub", "privateKey", "publicKey");
+pm.request.removeHeader("X-SWIFT-Signature");
+pm.request.headers.add({key: "X-SWIFT-Signature", value: signature});`}
+                      </pre>
+
+                      <p className="text-[11px] text-slate-600 leading-relaxed font-sans">
+                        Executed automatically upon clicking <strong>Execute Request</strong>: minifies the JSON body, generates the SHA-256 Base64 payload digest, signs the RS256 JWT assertion, and attaches the <code>X-SWIFT-Signature</code> header.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -272,6 +346,9 @@ export function InventoryRequestRunner({ request }: InventoryRequestRunnerProps)
       <MeaningfulOutput
         result={result}
         defaultService={request.section.toUpperCase()}
+        requestBody={bodyString}
+        requestMethod={request.method}
+        requestName={request.name}
       />
 
       {/* API EXPLANATION MODAL */}

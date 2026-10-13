@@ -76,7 +76,8 @@ function generateSecureJti(length = 12): string {
  */
 function isSignatureOperation(method: string, subPath: string): boolean {
   if (method.toUpperCase() !== "POST") return false;
-  const clean = subPath.replace(/^v[12]\//, "").replace(/^\//, "");
+  const pathOnly = subPath.split("?")[0];
+  const clean = pathOnly.replace(/^v[12]\//, "").replace(/^\//, "");
   return (
     clean === "fin/messages" ||
     clean === "fin/messages/batch" ||
@@ -87,18 +88,30 @@ function isSignatureOperation(method: string, subPath: string): boolean {
 }
 
 /**
- * Generates X-SWIFT-Signature JWT for non-repudiation per Alliance Cloud Getting Started Guide.
+ * Generates X-SWIFT-Signature JWT for non-repudiation per Alliance Cloud Getting Started Guide
+ * and SWIFT Postman createNRSignature pre-request script.
  */
 function generateSwiftSignature(
-  bodyStr: string,
+  minifiedBodyStr: string,
   subPath: string,
-  host: string
-): { signature: string; digest: string; aud: string; jti: string } {
-  const cleanPath = subPath.startsWith("v2") || subPath.startsWith("v1") ? subPath : `v2/${subPath}`;
+  host: string,
+  customSub?: string
+): { signature: string; digest: string; aud: string; jti: string; sub: string } {
+  const pathOnly = subPath.split("?")[0];
+  const cleanPath = pathOnly.startsWith("v2") || pathOnly.startsWith("v1") ? pathOnly : `v2/${pathOnly}`;
   const aud = `${host}/alliancecloud/${cleanPath}`;
-  const digest = crypto.createHash("sha256").update(bodyStr || "").digest("base64");
+
+  // SWIFT Non-Repudiation Digest per Postman createNRSignature pre-request script:
+  // var b64urlString = base64AddPadding(pmlib.rs.stob64u(bodyString));
+  // var digest = CryptoJS.SHA256(b64urlString).toString(CryptoJS.enc.Base64);
+  const b64Body = Buffer.from(minifiedBodyStr || "", "utf8").toString("base64");
+  const digest = crypto.createHash("sha256").update(b64Body).digest("base64");
+
   const currentTime = Date.now();
   const jti = generateSecureJti(12);
+  const sub = customSub || "CN=desktop, O=sandbox, O=swift";
+  const issuedAtSeconds = Math.floor(currentTime / 1000);
+  const expirationSeconds = issuedAtSeconds + 900;
 
   const header = {
     alg: "RS256",
@@ -107,11 +120,11 @@ function generateSwiftSignature(
   };
 
   const payload = {
-    iat: Math.ceil(currentTime / 1000) - 1000,
-    exp: Math.ceil((currentTime + 900 * 1000) / 1000),
-    jti,
-    sub: "CN=demo-swift-sandbox-consumer, O=Demo, L=London, S=London, C=GB",
     aud,
+    sub,
+    jti,
+    exp: expirationSeconds,
+    iat: issuedAtSeconds,
     digest,
   };
 
@@ -124,7 +137,7 @@ function generateSwiftSignature(
   const sig = signer.sign(BUILTIN_SANDBOX_DUMMY_PRIVATE_KEY);
   const signature = `${signingInput}.${base64Url(sig)}`;
 
-  return { signature, digest, aud, jti };
+  return { signature, digest, aud, jti, sub };
 }
 
 /**
@@ -283,23 +296,38 @@ function swiftDevServerPlugin(): Plugin {
                 proxyHeaders["Authorization"] = authHeader as string;
               }
 
-              // Auto-generate X-SWIFT-Signature for the 5 signature-required operations
+              // Auto-generate X-SWIFT-Signature for signature-required operations per SWIFT pre-request script
               let signatureMeta: Record<string, unknown> | null = null;
+              let effectiveBodyStr = bodyStr;
+
               if (req.method && isSignatureOperation(req.method, subPath)) {
-                const sigData = generateSwiftSignature(bodyStr, subPath, host);
+                // Minify JSON payload matching Postman: var compressedBody = JSON.stringify(JSON.parse(pm.request.body.raw));
+                try {
+                  if (bodyStr && bodyStr.trim()) {
+                    effectiveBodyStr = JSON.stringify(JSON.parse(bodyStr));
+                  }
+                } catch {
+                  effectiveBodyStr = bodyStr;
+                }
+
+                const customSub = (req.headers["x-swift-sub"] as string) || undefined;
+                const sigData = generateSwiftSignature(effectiveBodyStr, subPath, host, customSub);
+                delete proxyHeaders["X-SWIFT-Signature"];
+                delete proxyHeaders["x-swift-signature"];
                 proxyHeaders["X-SWIFT-Signature"] = sigData.signature;
                 signatureMeta = {
                   attached: true,
                   digest: sigData.digest,
                   aud: sigData.aud,
                   jti: sigData.jti,
+                  sub: sigData.sub,
                 };
               }
 
               const swiftRes = await fetch(targetUrl, {
                 method: req.method || "GET",
                 headers: proxyHeaders,
-                body: ["POST", "PUT", "PATCH"].includes(req.method || "") && bodyStr ? bodyStr : undefined,
+                body: ["POST", "PUT", "PATCH"].includes(req.method || "") && effectiveBodyStr ? effectiveBodyStr : undefined,
               });
 
               // Handle 204 No Content

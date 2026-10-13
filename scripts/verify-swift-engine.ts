@@ -78,4 +78,24 @@ if (sanitized !== "v2/distributions/44984189500") {
   process.exit(1);
 }
 
-console.log("\nALL 7 VERIFICATION SUITES PASSED CLEANLY!");
+import { convertSwiftPayload } from "../src/lib/swift/payload-converter";
+
+// 8. Test Payload Conversion (Base64 SWIFT MT)
+const rawB64Mt = "DQo6MjA6TE9XLTAwMDA4MjAyNzYxNw0KOjI4RDoxMjM0NS8xMjM0NQ0KOjMyQjpVU0QxLDM0DQo6NTJBOkNIQVNVUzMzDQo6NzFBOlNIQQ==";
+const convertedMt = convertSwiftPayload(rawB64Mt);
+console.log(`[PASS] MT Payload Converted: Format = ${convertedMt?.format}, IsBase64 = ${convertedMt?.isBase64}, Tags = ${convertedMt?.mtFields?.length}`);
+if (!convertedMt || convertedMt.format !== "swift-mt" || !convertedMt.isBase64 || !convertedMt.mtFields || convertedMt.mtFields.length < 4) {
+  console.error("[FAIL] SWIFT MT Payload conversion failed!", convertedMt);
+  process.exit(1);
+}
+
+// 9. Test Payload Conversion (Base64 ISO 20022 XML)
+const rawB64Xml = "PGVudmVsb3BlOkVudmVsb3BlIHhtbG5zOmVudmVsb3BlPSJ1cm46c3dpZnQ6eHNkOmVudmVsb3BlIj48QXBwSGRyPjxNc2dSZWY+SUUxOTwvTXNnUmVmPjwvQXBwSGRyPjwvZW52ZWxvcGU6RW52ZWxvcGU+";
+const convertedXml = convertSwiftPayload(rawB64Xml);
+console.log(`[PASS] XML Payload Converted: Format = ${convertedXml?.format}, IsBase64 = ${convertedXml?.isBase64}, Root = ${convertedXml?.xmlRoot}`);
+if (!convertedXml || convertedXml.format !== "xml" || !convertedXml.isBase64 || !convertedXml.formattedText.includes("<AppHdr>")) {
+  console.error("[FAIL] ISO 20022 XML Payload conversion failed!", convertedXml);
+  process.exit(1);
+}
+
+console.log("\nALL 9 VERIFICATION SUITES PASSED CLEANLY!");

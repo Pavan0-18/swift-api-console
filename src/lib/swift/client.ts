@@ -27,6 +27,7 @@ export interface SwiftApiResponse<T = unknown> {
     digest?: string;
     aud?: string;
     jti?: string;
+    sub?: string;
   };
   raw?: unknown;
 }

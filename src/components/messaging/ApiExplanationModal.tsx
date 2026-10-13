@@ -285,6 +285,39 @@ export function ApiExplanationModal({ requestId, isOpen, onClose }: ApiExplanati
                 </div>
               </div>
 
+              {/* Pre-request Script (Non-Repudiation) */}
+              {doc.method === "POST" && (doc.section === "FIN" || doc.section === "InterAct") && (
+                <div className="space-y-2 p-3.5 rounded-lg border border-[#800020]/20 bg-[#800020]/5">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-bold text-[#800020] font-mono text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                      <ShieldCheck className="h-3.5 w-3.5" />
+                      Pre-request Script (Postman Specification)
+                    </h4>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleCopy(
+                          `var signature = CustomGlobalFunctions.createNRSignature("sub", "privateKey", "publicKey");\npm.request.removeHeader("X-SWIFT-Signature");\npm.request.headers.add({key: "X-SWIFT-Signature", value: signature});`,
+                          "prereq_script"
+                        )
+                      }
+                      className="text-[11px] font-mono text-[#800020] hover:underline flex items-center gap-1 font-semibold cursor-pointer"
+                    >
+                      {copiedKey === "prereq_script" ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                      Copy Script
+                    </button>
+                  </div>
+                  <pre className="p-2.5 rounded border border-[#800020]/15 bg-white font-mono text-[11px] text-slate-800 overflow-x-auto leading-relaxed">
+{`var signature = CustomGlobalFunctions.createNRSignature("sub", "privateKey", "publicKey");
+pm.request.removeHeader("X-SWIFT-Signature");
+pm.request.headers.add({key: "X-SWIFT-Signature", value: signature});`}
+                  </pre>
+                  <p className="text-[11px] text-slate-600 leading-relaxed font-sans">
+                    Runs prior to dispatch: minifies the JSON payload, computes the SHA-256 Base64 digest, signs an RS256 JWT assertion with channel certificate credentials, and sets the <code className="font-mono font-bold text-[#800020]">X-SWIFT-Signature</code> header.
+                  </p>
+                </div>
+              )}
+
               {/* Request Body */}
               {doc.request.body && doc.request.body.mode !== "none" && (
                 <div className="space-y-2">
