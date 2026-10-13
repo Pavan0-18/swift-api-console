@@ -86,24 +86,7 @@ cd swift-api-console
 npm install
 ```
 
-### 2. Configure Environment Variables
-
-Copy `.env.example` to `.env.local`:
-
-```bash
-cp .env.example .env.local
-```
-
-| Variable | Description | Default |
-|---|---|---|
-| `SWIFT_SANDBOX_BASE_URL` | SWIFT Sandbox Alliance Cloud URL | `https://sandbox.swift.com/alliancecloud/v2` |
-| `SWIFT_TEST_BASE_URL` | SWIFT Test SIPN Alliance Cloud URL | `https://api-test.swiftnet.sipn.swift.com/alliancecloud-test/v2` |
-| `SWIFT_SANDBOX_OAUTH_URL` | SWIFT Sandbox OAuth 2.0 Token URL | `https://sandbox.swift.com/oauth2/v1/token` |
-| `SWIFT_TEST_OAUTH_URL` | SWIFT Test OAuth 2.0 Token URL | `https://api-test.swiftnet.sipn.swift.com/oauth2/v1/token` |
-| `SESSION_SECRET` | 32-character secret key for cookie encryption | Default random key |
-| `ENABLE_SWIFT_PRODUCTION` | Production environment guard | `false` |
-
-### 3. Run Development Server
+### 2. Run Development Server
 
 ```bash
 npm run dev
