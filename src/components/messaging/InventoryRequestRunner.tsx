@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Send, Clock, Eye, BookOpen, ShieldCheck, ChevronDown, ChevronUp, Copy, Check } from "lucide-react";
+import { Send, Clock, BookOpen, ShieldCheck, ChevronDown, ChevronUp, Copy, Check } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +10,6 @@ import { MeaningfulOutput, SwiftExecutionResult } from "@/components/messaging/M
 import { InventoryRequest } from "@/config/swift-inventory";
 import { executeSwiftRequest } from "@/lib/swift/client";
 import { useSwiftAuth } from "@/context/SwiftAuthContext";
-import { ApiExplanationModal } from "@/components/messaging/ApiExplanationModal";
 
 interface InventoryRequestRunnerProps {
   request: InventoryRequest;
@@ -21,7 +20,6 @@ export function InventoryRequestRunner({ request }: InventoryRequestRunnerProps)
   const [searchParams] = useSearchParams();
 
   // State
-  const [showDocModal, setShowDocModal] = React.useState(false);
   const [pathVariables, setPathVariables] = React.useState<Record<string, string>>({});
   const [queryParams, setQueryParams] = React.useState<Record<string, string>>({});
   const [bodyString, setBodyString] = React.useState<string>("");
@@ -139,15 +137,6 @@ export function InventoryRequestRunner({ request }: InventoryRequestRunnerProps)
           </div>
 
           <div className="flex items-center gap-2 font-mono text-xs">
-            <button
-              type="button"
-              onClick={() => setShowDocModal(true)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-sans font-medium bg-[#800020] text-white hover:bg-[#66001a] transition-all shadow-2xs cursor-pointer mr-1"
-              title="Explain this API: business purpose, payload structure & response envelope"
-            >
-              <Eye className="h-3.5 w-3.5" />
-              <span>Explain API</span>
-            </button>
             <Badge
               variant="outline"
               className={`font-mono text-xs px-2 py-0.5 uppercase ${
@@ -349,13 +338,6 @@ pm.request.headers.add({key: "X-SWIFT-Signature", value: signature});`}
         requestBody={bodyString}
         requestMethod={request.method}
         requestName={request.name}
-      />
-
-      {/* API EXPLANATION MODAL */}
-      <ApiExplanationModal
-        requestId={request.id}
-        isOpen={showDocModal}
-        onClose={() => setShowDocModal(false)}
       />
     </div>
   );
